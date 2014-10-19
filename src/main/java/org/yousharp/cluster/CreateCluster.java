@@ -2,15 +2,16 @@ package org.yousharp.cluster;
 
 import static com.google.common.base.Preconditions.*;
 
-import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.net.HostAndPort;
 import org.yousharp.util.ClusterUtil;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisCluster;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * create cluster using the specified master/slave instance;
@@ -25,7 +26,7 @@ public class CreateCluster {
      *
      * @param clusterNodes  nodes of the cluster, key/value is master/slave, one master can have multiple slaves
      */
-    public static void create(final HashMultimap<HostAndPort, HostAndPort> clusterNodes) {
+    public static void create(final ArrayListMultimap<HostAndPort, HostAndPort> clusterNodes) {
         checkArgument(clusterNodes != null && clusterNodes.size() > 0, "invalid clusterNodes.");
 
         /**
@@ -38,11 +39,11 @@ public class CreateCluster {
 
             if (firstNode == null) {
                 firstNode = new Jedis(masterNodeInfo.getHostText(), masterNodeInfo.getPort());
-                firstNode.clusterMeet(slaveNodeInfo.getHostText(), slaveNodeInfo.getPort());
+                ClusterUtil.joinCluster(firstNode, slaveNodeInfo);
                 continue;
             }
-            firstNode.clusterMeet(masterNodeInfo.getHostText(), masterNodeInfo.getPort());
-            firstNode.clusterMeet(slaveNodeInfo.getHostText(), slaveNodeInfo.getPort());
+            ClusterUtil.joinCluster(firstNode, masterNodeInfo);
+            ClusterUtil.joinCluster(firstNode, slaveNodeInfo);
             firstNode.close();
         }
 
@@ -50,44 +51,23 @@ public class CreateCluster {
          * 2. use `cluster replicate` to build master/slave structure
          */
         for (HostAndPort master: clusterNodes.keySet()) {
-            Set<HostAndPort> slaveList = clusterNodes.get(master);
-            Jedis masterNode = new Jedis(master.getHostText(), master.getPort());
-            String masterNodeId = ClusterUtil.getNodeId(masterNode.clusterNodes());
-            for (HostAndPort slave: slaveList) {
-                if (slave == null) {
-                    continue;
-                }
-                Jedis slaveNode = new Jedis(slave.getHostText(), slave.getPort());
-                slaveNode.clusterReplicate(masterNodeId);
-                slaveNode.close();
-            }
-            masterNode.close();
+            List<HostAndPort> slaveList = clusterNodes.get(master);
+            ClusterUtil.beSlaveOfMaster(master, slaveList);
         }
 
         /**
-         * 3.allocate the 16384 slots to all master nodes, the last node may have
-         * a little more or less slots
+         * 3. use `cluster addslots` to allocate the 16384 slots to all master nodes,
+         * the last node may have a little more or less slots.
          */
-        int numOfMaster = clusterNodes.keySet().size();
-        int slotsPerNode = JedisCluster.HASHSLOTS / numOfMaster;
-        int nodeIndex = 1;
-        int lastSlot = 0;
-        for (HostAndPort hnp: clusterNodes.keySet()) {
-            Jedis node = new Jedis(hnp.getHostText(), hnp.getPort());
-            if (nodeIndex == numOfMaster) {
-                slotsPerNode = JedisCluster.HASHSLOTS - slotsPerNode * (numOfMaster - 1);
-            }
-            int[] slotArray = new int[slotsPerNode];
-            for (int i = lastSlot, j = 0; i < nodeIndex * slotsPerNode && j < slotsPerNode; i++, j++) {
-                slotArray[j] = i;
-            }
-            lastSlot = nodeIndex++ * slotsPerNode;
-            node.clusterAddSlots(slotArray);
-            node.close();
+        List<Integer> slots = new ArrayList<>();
+        for (int i = 0; i < JedisCluster.HASHSLOTS; i++) {
+            slots.add(i);
         }
+        ClusterUtil.allocateSlotsToNodes(slots, Lists.newArrayList(clusterNodes.keys()));
 
         /**
-         * 4. wait for the cluster to be ready
+         * 4. use `cluster info` to make sure that all nodes are ok;
+         * wait for the cluster to be ready.
          */
         ClusterUtil.waitForClusterReady(Lists.newArrayList(clusterNodes.keySet()));
     }

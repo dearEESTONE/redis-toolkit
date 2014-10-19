@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * cluster相关的util方法
+ * cluster related util methods
  *
  * @author: lingguo
  * @time: 2014/10/18 18:20
@@ -149,5 +149,34 @@ public class ClusterUtil {
         }
         return "";
     }
+
+    /**
+     * allocate the slots {@code slots} to the master nodes {@code masterNodes},
+     * evenly to the best.
+     *
+     * @param slots         the slots to allocate
+     * @param masterNodes   the master nodes
+     */
+    public static void allocateSlotsToNodes(List<Integer> slots, List<HostAndPort> masterNodes) {
+        int numOfMaster = masterNodes.size();
+        int slotsPerNode = slots.size() / numOfMaster;
+        int lastSlot = 0;
+        for (int i = 0; i < numOfMaster; i++) {
+            HostAndPort masterNodeInfo = masterNodes.get(i);
+            Jedis node = new Jedis(masterNodeInfo.getHostText(), masterNodeInfo.getPort());
+            /** the last node */
+            if (i == numOfMaster - 1) {
+                slotsPerNode = slots.size() - slotsPerNode * i;
+            }
+            int[] slotArray = new int[slotsPerNode];
+            for (int k = lastSlot, j = 0; k < (i + 1) * slotsPerNode && j < slotsPerNode; k++, j++) {
+                slotArray[j] = slots.get(k);
+            }
+            lastSlot = (i + 1) * slotsPerNode;
+            node.clusterAddSlots(slotArray);
+            node.close();
+        }
+    }
+
 
 }
