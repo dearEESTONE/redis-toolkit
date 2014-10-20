@@ -1,4 +1,4 @@
-The `redis-toolkit` project intends to provide some util classes and methods to better use and manage redis.
+The `redis-toolkit` project intends to provide some utility classes and methods to better use and manage redis.
 
 Cluster Tool
 --------------------------------------------------

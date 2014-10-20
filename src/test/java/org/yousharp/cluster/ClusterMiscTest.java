@@ -29,4 +29,20 @@ public class ClusterMiscTest extends Assert {
             System.out.println("slave: " + slave);
         }
     }
+
+    @Test
+    public void testClusterForget() {
+        Jedis node = new Jedis("10.7.40.49", 7002);
+        Jedis forget1 = new Jedis("10.7.40.49", 7004);
+        Jedis forget2 = new Jedis("10.7.40.49", 7005);
+        String nodeId1 = ClusterUtil.getNodeId(forget1.clusterNodes());
+        String nodeId2 = ClusterUtil.getNodeId(forget2.clusterNodes());
+
+        node.clusterForget(nodeId1);
+        node.clusterForget(nodeId2);
+
+        node.close();
+        forget1.close();
+        forget2.close();
+    }
 }

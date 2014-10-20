@@ -1,19 +1,28 @@
 package org.yousharp.util;
 
+import static com.google.common.base.Preconditions.*;
+
 import com.google.common.net.HostAndPort;
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.exceptions.JedisException;
+import redis.clients.jedis.exceptions.JedisClusterException;
+import redis.clients.util.ClusterNodeInformation;
+import redis.clients.util.ClusterNodeInformationParser;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
- * cluster related util methods
+ * cluster related utility methods
  *
  * @author: lingguo
  * @time: 2014/10/18 18:20
  */
 public class ClusterUtil {
+    public static final String SLOT_IN_TRANSITION_IDENTIFIER = "[";
+    public static final String SLOT_IMPORTING_IDENTIFIER = "--<--";
+    public static final String SLOT_MIGRATING_IDENTIFIER = "-->--";
+    public static final int CLUSTER_SLEEP_INTERVAL = 100;
 
     /**
      * wait for the cluster to be ready;
@@ -21,14 +30,14 @@ public class ClusterUtil {
      *
      * @param masterNodes   master nodes
      */
-    public static void waitForClusterReady(List<HostAndPort> masterNodes) {
+    public static void waitForClusterReady(Set<HostAndPort> masterNodes) {
         boolean clusterOk = false;
         while (!clusterOk) {
             clusterOk = true;
             for (HostAndPort hnp: masterNodes) {
                 Jedis node = new Jedis(hnp.getHostText(), hnp.getPort());
                 String clusterInfo = node.clusterInfo();
-                String firstLine = clusterInfo.split("\n")[0];
+                String firstLine = clusterInfo.split("\r\n")[0];
                 node.close();
                 if (firstLine.split(":")[0].equalsIgnoreCase("cluster_state") &&
                         firstLine.split(":")[1].equalsIgnoreCase("ok")) {
@@ -43,9 +52,9 @@ public class ClusterUtil {
             }
 
             try {
-                TimeUnit.MILLISECONDS.sleep(30);
+                TimeUnit.MILLISECONDS.sleep(CLUSTER_SLEEP_INTERVAL);
             } catch (InterruptedException e) {
-                throw new JedisException("cluster not ready.", e);
+                throw new JedisClusterException("waitForClusterReady", e);
             }
         }
     }
@@ -56,22 +65,13 @@ public class ClusterUtil {
      *
      * @param node  the current node
      * @param targetNodeId  the node id of the target node
-     * @param timeoutMs     timeout in ms
      * @return  if 'known' return true, or return false
      */
-    public static boolean isNodeKnown(Jedis node, String targetNodeId, long timeoutMs) {
+    public static boolean isNodeKnown(Jedis node, String targetNodeId) {
         String clusterInfo = node.clusterInfo();
-        long sleepInterval = 100;
-        for (long sleepTime = 0; sleepTime <= timeoutMs; sleepTime += sleepInterval) {
-            for (String infoLine : clusterInfo.split("\n")) {
-                if (infoLine.contains(targetNodeId)) {
-                    return true;
-                }
-            }
-            try {
-                TimeUnit.MILLISECONDS.sleep(sleepInterval);
-            } catch (InterruptedException e) {
-                throw new JedisException("thread interrupted.", e);
+        for (String infoLine : clusterInfo.split("\n")) {
+            if (infoLine.contains(targetNodeId)) {
+                return true;
             }
         }
         return false;
@@ -81,13 +81,25 @@ public class ClusterUtil {
      * check if node {@code destNodeInfo} is in the cluster represented by node {@code srcNode};
      * if not, put it in.
      *
-     * @param srcNode       the node in the cluster
+     * @param srcNode        the node in the cluster
      * @param destNodeInfo  the node to "meet"
+     * @param timeoutMs     timeout in ms
      */
-    public static void joinCluster(Jedis srcNode, HostAndPort destNodeInfo) {
+    public static void joinCluster(final Jedis srcNode, final HostAndPort destNodeInfo, final long timeoutMs) {
         Jedis destNode = new Jedis(destNodeInfo.getHostText(), destNodeInfo.getPort());
-        if (!isNodeKnown(srcNode, getNodeId(destNode.clusterInfo()), 200)) {
+        if (!isNodeKnown(srcNode, getNodeId(destNode.clusterNodes()))) {
             srcNode.clusterMeet(destNodeInfo.getHostText(), destNodeInfo.getPort());
+        }
+
+        for (long sleepTime = 0; sleepTime <= timeoutMs; sleepTime += CLUSTER_SLEEP_INTERVAL) {
+            if (isNodeKnown(srcNode, getNodeId(destNode.clusterNodes()))) {
+                break;
+            }
+            try {
+                TimeUnit.MILLISECONDS.sleep(CLUSTER_SLEEP_INTERVAL);
+            } catch (InterruptedException e) {
+                throw new JedisClusterException("joinCluster timeout.", e);
+            }
         }
         destNode.close();
     }
@@ -98,9 +110,9 @@ public class ClusterUtil {
      * @param srcNode           the node in the cluster
      * @param destNodesInfo     the nodes to "meet"
      */
-    public static void joinCluster(Jedis srcNode, List<HostAndPort> destNodesInfo) {
+    public static void joinCluster(final Jedis srcNode, final List<HostAndPort> destNodesInfo, final long timeoutMs) {
         for (HostAndPort hnp: destNodesInfo) {
-            joinCluster(srcNode, hnp);
+            joinCluster(srcNode, hnp, timeoutMs);
         }
     }
 
@@ -178,5 +190,56 @@ public class ClusterUtil {
         }
     }
 
+    /**
+     * wait for the migration process done: check the output of `cluster nodes` make sure
+     *  that migration is done.
+     *
+     * migration-in-transition:
+     *  38807bd0262d99f205ebd0eb3e483cc09e927731 :7002 myself,master - 0 0 1 connected 0-5459 [5460->-38807bd0262d99f205ebd0eb3e483cc09e927731] [5461-<-e85a79cfee516d9eb1339e8f0107466307b4a50c]
+     *
+     * @param nodesInfo     the nodes to check
+     */
+    public static void waitForMigrationDone(HostAndPort nodesInfo) {
+        checkNotNull(nodesInfo, "nodesInfo is null.");
+
+        Jedis node = new Jedis(nodesInfo.getHostText(), nodesInfo.getPort());
+        String[] clusterNodesInfo = node.clusterNodes().split("\n");
+
+        boolean isOk = false;
+        while (!isOk) {
+            isOk = true;
+            for (String infoLine: clusterNodesInfo) {
+                if (infoLine.startsWith(SLOT_IN_TRANSITION_IDENTIFIER)) {
+                    isOk = false;
+                    break;
+                }
+            }
+            if (isOk) {
+                break;
+            }
+            try {
+                TimeUnit.MILLISECONDS.sleep(CLUSTER_SLEEP_INTERVAL);
+            } catch (InterruptedException e) {
+                throw new JedisClusterException("waitForMigrationDone", e);
+            }
+        }
+    }
+
+    /**
+     * get slots information of the node, especially the serving slots.
+     *
+     * @param node      the node
+     * @param current   the node info
+     * @return           the slots info of the node
+     */
+    public static ClusterNodeInformation getNodeSlotsInfo(Jedis node, HostAndPort current) {
+        checkNotNull(node, "node is null.");
+        checkNotNull(current, "current is null.");
+
+        ClusterNodeInformationParser parser = new ClusterNodeInformationParser();
+        String nodeInfoLine = getNodeInfo(node.clusterNodes());
+        ClusterNodeInformation nodeInformation = parser.parse(nodeInfoLine, new redis.clients.jedis.HostAndPort(current.getHostText(), current.getPort()));
+        return nodeInformation;
+    }
 
 }

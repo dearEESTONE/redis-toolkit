@@ -39,11 +39,13 @@ public class CreateCluster {
 
             if (firstNode == null) {
                 firstNode = new Jedis(masterNodeInfo.getHostText(), masterNodeInfo.getPort());
-                ClusterUtil.joinCluster(firstNode, slaveNodeInfo);
+                ClusterUtil.joinCluster(firstNode, slaveNodeInfo, ClusterUtil.CLUSTER_SLEEP_INTERVAL);
                 continue;
             }
-            ClusterUtil.joinCluster(firstNode, masterNodeInfo);
-            ClusterUtil.joinCluster(firstNode, slaveNodeInfo);
+            ClusterUtil.joinCluster(firstNode, masterNodeInfo, ClusterUtil.CLUSTER_SLEEP_INTERVAL);
+            ClusterUtil.joinCluster(firstNode, slaveNodeInfo, ClusterUtil.CLUSTER_SLEEP_INTERVAL);
+        }
+        if (firstNode != null) {
             firstNode.close();
         }
 
@@ -69,6 +71,6 @@ public class CreateCluster {
          * 4. use `cluster info` to make sure that all nodes are ok;
          * wait for the cluster to be ready.
          */
-        ClusterUtil.waitForClusterReady(Lists.newArrayList(clusterNodes.keySet()));
+        ClusterUtil.waitForClusterReady(clusterNodes.keySet());
     }
 }

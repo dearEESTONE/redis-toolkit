@@ -1,6 +1,6 @@
 package org.yousharp.cluster;
 
-import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.net.HostAndPort;
 import org.junit.Assert;
 import org.junit.Before;
@@ -14,11 +14,11 @@ import java.util.ResourceBundle;
  */
 public class CreateClusterTest extends Assert {
 
-    private HashMultimap<HostAndPort, HostAndPort> clusterNodes = null;
+    private ArrayListMultimap<HostAndPort, HostAndPort> clusterNodes = null;
 
     @Before
     public void loadNodes() {
-        clusterNodes =  HashMultimap.create();
+        clusterNodes =  ArrayListMultimap.create();
         ResourceBundle rb = ResourceBundle.getBundle("config");
         String[] nodeArray = rb.getString("clusterNodes").split(",");
         for (String masterSlave: nodeArray) {
