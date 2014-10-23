@@ -12,7 +12,7 @@ import java.util.ResourceBundle;
  * @author: lingguo
  * @time: 2014/10/18 21:56
  */
-public class CreateClusterTest extends Assert {
+public class CreateTest extends Assert {
 
     private ArrayListMultimap<HostAndPort, HostAndPort> clusterNodes = null;
 
@@ -38,7 +38,7 @@ public class CreateClusterTest extends Assert {
     @Test
     public void testCreate() {
         assertNotNull(clusterNodes);
-        CreateCluster.create(clusterNodes);
+        Create.create(clusterNodes);
     }
 
 }

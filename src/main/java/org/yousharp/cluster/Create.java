@@ -19,7 +19,7 @@ import java.util.Map;
  * @author: lingguo
  * @time: 2014/10/18 11:21
  */
-public class CreateCluster {
+public class Create {
 
     /**
      * create a redis cluster
@@ -39,11 +39,11 @@ public class CreateCluster {
 
             if (firstNode == null) {
                 firstNode = new Jedis(masterNodeInfo.getHostText(), masterNodeInfo.getPort());
-                ClusterUtil.joinCluster(firstNode, slaveNodeInfo, ClusterUtil.CLUSTER_SLEEP_INTERVAL);
+                ClusterUtil.joinCluster(masterNodeInfo, slaveNodeInfo);
                 continue;
             }
-            ClusterUtil.joinCluster(firstNode, masterNodeInfo, ClusterUtil.CLUSTER_SLEEP_INTERVAL);
-            ClusterUtil.joinCluster(firstNode, slaveNodeInfo, ClusterUtil.CLUSTER_SLEEP_INTERVAL);
+            ClusterUtil.joinCluster(masterNodeInfo, masterNodeInfo);
+            ClusterUtil.joinCluster(masterNodeInfo, slaveNodeInfo);
         }
         if (firstNode != null) {
             firstNode.close();

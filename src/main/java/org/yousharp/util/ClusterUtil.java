@@ -8,6 +8,7 @@ import redis.clients.jedis.exceptions.JedisClusterException;
 import redis.clients.util.ClusterNodeInformation;
 import redis.clients.util.ClusterNodeInformationParser;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -22,25 +23,32 @@ public class ClusterUtil {
     public static final String SLOT_IN_TRANSITION_IDENTIFIER = "[";
     public static final String SLOT_IMPORTING_IDENTIFIER = "--<--";
     public static final String SLOT_MIGRATING_IDENTIFIER = "-->--";
-    public static final int CLUSTER_SLEEP_INTERVAL = 100;
+    public static final long CLUSTER_SLEEP_INTERVAL = 100;
+    public static final int CLUSTER_DEFAULT_TIMEOUT = 300;
+    public static final int CLUSTER_MIGRATE_NUM = 10;
+    public static final int CLUSTER_DEFAULT_DB = 0;
+    public static final String UNIX_LINE_SEPARATOR = "\n";
+    public static final String WINDOWS_LINE_SEPARATOR = "\r\n";
+    public static final String COLON_SEPARATOR = ":";
 
     /**
      * wait for the cluster to be ready;
-     * the cluster is ready when `cluster info` of all nodes {@code masterNodes} are ok.
+     * the cluster is ready when `cluster info` of all nodes {@code clusterNodes} are ok.
      *
-     * @param masterNodes   master nodes
+     * @param clusterNodes   master nodes
      */
-    public static void waitForClusterReady(Set<HostAndPort> masterNodes) {
+    public static void waitForClusterReady(final Set<HostAndPort> clusterNodes) {
         boolean clusterOk = false;
         while (!clusterOk) {
             clusterOk = true;
-            for (HostAndPort hnp: masterNodes) {
+            for (HostAndPort hnp: clusterNodes) {
                 Jedis node = new Jedis(hnp.getHostText(), hnp.getPort());
                 String clusterInfo = node.clusterInfo();
-                String firstLine = clusterInfo.split("\r\n")[0];
+                String firstLine = clusterInfo.split(UNIX_LINE_SEPARATOR)[0];
                 node.close();
-                if (firstLine.split(":")[0].equalsIgnoreCase("cluster_state") &&
-                        firstLine.split(":")[1].equalsIgnoreCase("ok")) {
+                String[] firstLineArr = firstLine.split(COLON_SEPARATOR);
+                if (firstLineArr[0].equalsIgnoreCase("cluster_state") &&
+                        firstLineArr[1].equalsIgnoreCase("ok")) {
                     continue;
                 }
                 clusterOk = false;
@@ -60,39 +68,51 @@ public class ClusterUtil {
     }
 
     /**
-     * check if the node {@code node} already 'knows' the target node {@code targetNodeId},
+     * check if the node {@code srcNodeInfo} already 'knows' the target node {@code targetNodeInfo},
      * which means whether they are in the same cluster;
      *
-     * @param node  the current node
-     * @param targetNodeId  the node id of the target node
-     * @return  if 'known' return true, or return false
+     * @param srcNodeInfo  the src node
+     * @param targetNodeInfo  the dest node
+     * @return  if 'known' return true, else return false
      */
-    public static boolean isNodeKnown(Jedis node, String targetNodeId) {
-        String clusterInfo = node.clusterInfo();
-        for (String infoLine : clusterInfo.split("\n")) {
+    public static boolean isNodeKnown(final HostAndPort srcNodeInfo, final HostAndPort targetNodeInfo) {
+        Jedis srcNode = new Jedis(srcNodeInfo.getHostText(), srcNodeInfo.getPort());
+        String targetNodeId = getNodeId(targetNodeInfo);
+        String[] clusterInfo = srcNode.clusterNodes().split(UNIX_LINE_SEPARATOR);
+        for (String infoLine : clusterInfo) {
             if (infoLine.contains(targetNodeId)) {
+                srcNode.close();
                 return true;
             }
         }
+        srcNode.close();
         return false;
     }
 
     /**
-     * check if node {@code destNodeInfo} is in the cluster represented by node {@code srcNode};
-     * if not, put it in.
+     * put node {@code nodeToJoin} in the cluster represented by node {@code clusterNodeInfo};
      *
-     * @param srcNode        the node in the cluster
-     * @param destNodeInfo  the node to "meet"
-     * @param timeoutMs     timeout in ms
+     * @param clusterNodeInfo       one node in the cluster
+     * @param nodeToJoin            the node to add
+     * @param timeoutMs             timeout in ms
      */
-    public static void joinCluster(final Jedis srcNode, final HostAndPort destNodeInfo, final long timeoutMs) {
-        Jedis destNode = new Jedis(destNodeInfo.getHostText(), destNodeInfo.getPort());
-        if (!isNodeKnown(srcNode, getNodeId(destNode.clusterNodes()))) {
-            srcNode.clusterMeet(destNodeInfo.getHostText(), destNodeInfo.getPort());
-        }
+    public static boolean joinCluster(final HostAndPort clusterNodeInfo, final HostAndPort nodeToJoin, final long timeoutMs) {
+        Jedis clusterNode = new Jedis(clusterNodeInfo.getHostText(), clusterNodeInfo.getPort());
+        clusterNode.clusterMeet(nodeToJoin.getHostText(), nodeToJoin.getPort());
+        List<HostAndPort> clusterNodes = getAllNodesOfCluster(clusterNodeInfo);
 
-        for (long sleepTime = 0; sleepTime <= timeoutMs; sleepTime += CLUSTER_SLEEP_INTERVAL) {
-            if (isNodeKnown(srcNode, getNodeId(destNode.clusterNodes()))) {
+        // wait for join ok
+        boolean joinOk = false;
+        long sleepTime = 0;
+        while (!joinOk && sleepTime < timeoutMs) {
+            joinOk = true;
+            for (HostAndPort hnp: clusterNodes) {
+                if (!isNodeKnown(hnp, nodeToJoin)) {
+                    joinOk = false;
+                    break;
+                }
+            }
+            if (joinOk) {
                 break;
             }
             try {
@@ -100,20 +120,21 @@ public class ClusterUtil {
             } catch (InterruptedException e) {
                 throw new JedisClusterException("joinCluster timeout.", e);
             }
+            sleepTime += CLUSTER_SLEEP_INTERVAL;
         }
-        destNode.close();
+        clusterNode.close();
+        return joinOk;
     }
 
     /**
-     * put the nodes {@code destNodesInfo} to the cluster
+     * put the node {@code nodeToJoin} to the cluster with default timeout
      *
-     * @param srcNode           the node in the cluster
-     * @param destNodesInfo     the nodes to "meet"
+     * @param clusterNodeInfo   one node in the cluster
+     * @param nodeToJoin        the node to join
+     * @return
      */
-    public static void joinCluster(final Jedis srcNode, final List<HostAndPort> destNodesInfo, final long timeoutMs) {
-        for (HostAndPort hnp: destNodesInfo) {
-            joinCluster(srcNode, hnp, timeoutMs);
-        }
+    public static boolean joinCluster(final HostAndPort clusterNodeInfo, final HostAndPort nodeToJoin) {
+        return joinCluster(clusterNodeInfo, nodeToJoin, CLUSTER_DEFAULT_TIMEOUT);
     }
 
     /**
@@ -122,54 +143,110 @@ public class ClusterUtil {
      * @param master    the master node
      * @param slaves    slave node list
      */
-    public static void beSlaveOfMaster(HostAndPort master, List<HostAndPort> slaves) {
-        Jedis masterNode = new Jedis(master.getHostText(), master.getPort());
-        String masterNodeId = getNodeId(masterNode.clusterNodes());
+    public static void beSlaveOfMaster(final HostAndPort master, final List<HostAndPort> slaves) {
+        String masterNodeId = getNodeId(master);
         for (HostAndPort slave: slaves) {
             Jedis slaveNode = new Jedis(slave.getHostText(), slave.getPort());
             slaveNode.clusterReplicate(masterNodeId);
             slaveNode.close();
         }
-        masterNode.close();
     }
 
     /**
      * get node info of the current node (myself) from `cluster nodes` output info
      *
-     * @param clusterNodesInfo     `cluster nodes` output
+     * @param nodeInfo  the node
      */
-    public static String getNodeInfo(String clusterNodesInfo) {
-        for (String lineInfo: clusterNodesInfo.split("\n")) {
+    public static String getNodeInfo(final HostAndPort nodeInfo) {
+        Jedis node = new Jedis(nodeInfo.getHostText(), nodeInfo.getPort());
+        String[] clusterInfo = node.clusterNodes().split(UNIX_LINE_SEPARATOR);
+        for (String lineInfo: clusterInfo) {
             if (lineInfo.contains("myself")) {
                 return lineInfo;
             }
         }
+        node.close();
         return "";
     }
 
     /**
-     * get the node id of the current node
+     * get the node id of the current node {@code nodeInfo}
      *
-     * @param clusterNodesInfo  output of `cluster nodes` of the node
+     * @param nodeInfo  the node
      * @return  node id
      */
-    public static String getNodeId(String clusterNodesInfo) {
-        for (String lineInfo: clusterNodesInfo.split("\n")) {
+    public static String getNodeId(final HostAndPort nodeInfo) {
+        Jedis jedis = new Jedis(nodeInfo.getHostText(), nodeInfo.getPort());
+        String[] clusterInfo = jedis.clusterNodes().split(UNIX_LINE_SEPARATOR);
+        for (String lineInfo: clusterInfo) {
             if (lineInfo.contains("myself")) {
-                return lineInfo.split(":")[0];
+                return lineInfo.split(COLON_SEPARATOR)[0];
             }
         }
         return "";
     }
 
     /**
-     * allocate the slots {@code slots} to the master nodes {@code masterNodes},
+     * get all nodes from the cluster
+     *
+     * be care, sometimes the output likes this:
+     *
+     * fd80d1696a8af7c6148db3a824dadbb09622227a :8000 myself,master - 0 0 0 connected 0-16300
+     * 0ef0b665a18723b6384d93dbc886b97e90c100db 10.7.40.49:8002 master - 0 1414050055100 2 connected 16301-16383
+     * a31f4967b88f2af6a4d6637fe420c76ee9a91b83 10.7.40.49:8003 slave 0ef0b665a18723b6384d93dbc886b97e90c100db 0 1414050056101 2 connected
+     * d08e6b9f7f32dcc5556b5395227e0afeadc0c836 10.7.40.49:8001 slave fd80d1696a8af7c6148db3a824dadbb09622227a 0 1414050054098 1 connected
+     *
+     * @param nodeInfo   one node of the cluster
+     * @return
+     */
+    public static List<HostAndPort> getAllNodesOfCluster(final HostAndPort nodeInfo) {
+        Jedis node = new Jedis(nodeInfo.getHostText(), nodeInfo.getPort());
+        List<HostAndPort> clusterNodeList = new ArrayList<>();
+        clusterNodeList.add(nodeInfo);
+        String[] clusterNodesOutput = node.clusterNodes().split(UNIX_LINE_SEPARATOR);
+        for (String infoLine: clusterNodesOutput) {
+            if (infoLine.contains("myself")) {
+                continue;
+            }
+            HostAndPort hnp = HostAndPort.fromString(infoLine.split(" ")[1]);
+            clusterNodeList.add(hnp);
+        }
+        return clusterNodeList;
+    }
+
+    /**
+     * get all master nodes of the cluster;
+     *
+     * @param nodeInfo   one node of the cluster
+     * @return
+     */
+    public static List<HostAndPort> getMasterNodesOfCluster(final HostAndPort nodeInfo) {
+        Jedis node = new Jedis(nodeInfo.getHostText(), nodeInfo.getPort());
+        List<HostAndPort> masterNodeList = new ArrayList<>();
+
+        String[] clusterNodesOutput = node.clusterNodes().split(UNIX_LINE_SEPARATOR);
+        for (String infoLine: clusterNodesOutput) {
+            if (infoLine.contains("master")) {
+                if (infoLine.contains("myself")) {
+                    masterNodeList.add(nodeInfo);
+                } else {
+                    masterNodeList.add(HostAndPort.fromString(infoLine.split(" ")[1]));
+                }
+            }
+        }
+        node.close();
+        return masterNodeList;
+    }
+
+
+    /**
+     * allocate enpty slots {@code slots} to the master nodes {@code masterNodes},
      * evenly to the best.
      *
      * @param slots         the slots to allocate
      * @param masterNodes   the master nodes
      */
-    public static void allocateSlotsToNodes(List<Integer> slots, List<HostAndPort> masterNodes) {
+    public static void allocateSlotsToNodes(final List<Integer> slots, final List<HostAndPort> masterNodes) {
         int numOfMaster = masterNodes.size();
         int slotsPerNode = slots.size() / numOfMaster;
         int lastSlot = 0;
@@ -199,11 +276,11 @@ public class ClusterUtil {
      *
      * @param nodesInfo     the nodes to check
      */
-    public static void waitForMigrationDone(HostAndPort nodesInfo) {
+    public static void waitForMigrationDone(final HostAndPort nodesInfo) {
         checkNotNull(nodesInfo, "nodesInfo is null.");
 
         Jedis node = new Jedis(nodesInfo.getHostText(), nodesInfo.getPort());
-        String[] clusterNodesInfo = node.clusterNodes().split("\n");
+        String[] clusterNodesInfo = node.clusterNodes().split(UNIX_LINE_SEPARATOR);
 
         boolean isOk = false;
         while (!isOk) {
@@ -228,18 +305,16 @@ public class ClusterUtil {
     /**
      * get slots information of the node, especially the serving slots.
      *
-     * @param node      the node
-     * @param current   the node info
+     * @param nodeInfo   the node info
      * @return           the slots info of the node
      */
-    public static ClusterNodeInformation getNodeSlotsInfo(Jedis node, HostAndPort current) {
-        checkNotNull(node, "node is null.");
-        checkNotNull(current, "current is null.");
+    public static ClusterNodeInformation getNodeSlotsInfo(final HostAndPort nodeInfo) {
+        checkNotNull(nodeInfo, "nodeInfo is null.");
 
         ClusterNodeInformationParser parser = new ClusterNodeInformationParser();
-        String nodeInfoLine = getNodeInfo(node.clusterNodes());
-        ClusterNodeInformation nodeInformation = parser.parse(nodeInfoLine, new redis.clients.jedis.HostAndPort(current.getHostText(), current.getPort()));
+        String nodeInfoLine = getNodeInfo(nodeInfo);
+        ClusterNodeInformation nodeInformation = parser.parse(nodeInfoLine,
+                new redis.clients.jedis.HostAndPort(nodeInfo.getHostText(), nodeInfo.getPort()));
         return nodeInformation;
     }
-
 }
