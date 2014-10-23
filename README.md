@@ -1,4 +1,4 @@
-The `redis-toolkit` project intends to provide some utility classes and methods to better use and manage redis.
+redis toolkit implemented in java.
 
 Cluster Tool
 --------------------------------------------------
