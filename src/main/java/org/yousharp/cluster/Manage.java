@@ -27,12 +27,12 @@ public class Manage {
      *  2. if the node to add is slave of a master in the cluster, first `cluster meet`
      *   to join the cluster, then `cluster replicate` to be slave of the master.
      *
-     * @param clusterNodeInfo
-     * @param nodeToAdd
-     * @param masterToReplicate
+     * @param clusterNodeInfo   any node in the cluster
+     * @param nodeToAdd         the node to add
+     * @param masterToReplicate     if the node to add is slave, this is it's master in the cluster, or this is null.
      */
     public static void addNewNode(final HostAndPort clusterNodeInfo, final HostAndPort nodeToAdd, final HostAndPort masterToReplicate) {
-        checkNotNull(clusterNodeInfo, "node is null.");
+        checkNotNull(clusterNodeInfo, "clusterNodeInfo is null.");
         checkNotNull(nodeToAdd, "nodeToAdd is invalid.");
 
         List<HostAndPort> oldMasterNodes = ClusterUtil.getMasterNodesOfCluster(clusterNodeInfo);

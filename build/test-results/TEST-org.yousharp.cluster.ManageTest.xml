@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="org.yousharp.cluster.ManageTest" tests="4" skipped="0" failures="4" errors="0" timestamp="2014-10-27T06:26:28" hostname="LINGGUO1-TJ" time="8.011">
+<testsuite name="org.yousharp.cluster.ManageTest" tests="4" skipped="0" failures="4" errors="0" timestamp="2014-10-27T15:37:09" hostname="LINGGUO1-TJ" time="8.008">
   <properties/>
-  <testcase name="testRemoveSlave" classname="org.yousharp.cluster.ManageTest" time="2.002">
+  <testcase name="testRemoveSlave" classname="org.yousharp.cluster.ManageTest" time="2.001">
     <failure message="redis.clients.jedis.exceptions.JedisConnectionException: java.net.SocketTimeoutException: connect timed out" type="redis.clients.jedis.exceptions.JedisConnectionException">redis.clients.jedis.exceptions.JedisConnectionException: java.net.SocketTimeoutException: connect timed out
 	at redis.clients.jedis.Connection.connect(Connection.java:150)
 	at redis.clients.jedis.BinaryClient.connect(BinaryClient.java:75)
@@ -135,7 +135,7 @@ Caused by: java.net.SocketTimeoutException: connect timed out
 	... 51 more
 </failure>
   </testcase>
-  <testcase name="testAddSlave" classname="org.yousharp.cluster.ManageTest" time="2.002">
+  <testcase name="testAddSlave" classname="org.yousharp.cluster.ManageTest" time="2.0">
     <failure message="redis.clients.jedis.exceptions.JedisConnectionException: java.net.SocketTimeoutException: connect timed out" type="redis.clients.jedis.exceptions.JedisConnectionException">redis.clients.jedis.exceptions.JedisConnectionException: java.net.SocketTimeoutException: connect timed out
 	at redis.clients.jedis.Connection.connect(Connection.java:150)
 	at redis.clients.jedis.BinaryClient.connect(BinaryClient.java:75)
@@ -202,7 +202,7 @@ Caused by: java.net.SocketTimeoutException: connect timed out
 	... 51 more
 </failure>
   </testcase>
-  <testcase name="testRemoveMaster" classname="org.yousharp.cluster.ManageTest" time="2.001">
+  <testcase name="testRemoveMaster" classname="org.yousharp.cluster.ManageTest" time="2.002">
     <failure message="redis.clients.jedis.exceptions.JedisConnectionException: java.net.SocketTimeoutException: connect timed out" type="redis.clients.jedis.exceptions.JedisConnectionException">redis.clients.jedis.exceptions.JedisConnectionException: java.net.SocketTimeoutException: connect timed out
 	at redis.clients.jedis.Connection.connect(Connection.java:150)
 	at redis.clients.jedis.BinaryClient.connect(BinaryClient.java:75)

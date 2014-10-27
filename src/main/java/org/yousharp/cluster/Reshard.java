@@ -6,6 +6,7 @@ import com.google.common.net.HostAndPort;
 import org.yousharp.util.ClusterUtil;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisCluster;
+import redis.clients.jedis.Pipeline;
 import redis.clients.jedis.exceptions.JedisClusterException;
 import redis.clients.util.ClusterNodeInformation;
 
@@ -33,6 +34,7 @@ public class Reshard {
 
         Jedis srcNode = new Jedis(srcNodeInfo.getHostText(), srcNodeInfo.getPort());
         String srcNodeId = ClusterUtil.getNodeId(srcNodeInfo);
+        Pipeline pipeline = srcNode.pipelined();
         Jedis destNode = new Jedis(destNodeInfo.getHostText(), destNodeInfo.getPort());
         String destNodeId = ClusterUtil.getNodeId(destNodeInfo);
 
@@ -47,9 +49,10 @@ public class Reshard {
                     break;
                 }
                 for (String key: keysInSlot) {
-                    srcNode.migrate(destNodeInfo.getHostText(), destNodeInfo.getPort(), key, ClusterUtil.CLUSTER_DEFAULT_DB, ClusterUtil.CLUSTER_DEFAULT_TIMEOUT);
+                    pipeline.migrate(destNodeInfo.getHostText(), destNodeInfo.getPort(), key, ClusterUtil.CLUSTER_DEFAULT_DB, ClusterUtil.CLUSTER_DEFAULT_TIMEOUT);
                 }
             }
+            pipeline.sync();
 
             srcNode.clusterSetSlotNode(slot, destNodeId);
         }

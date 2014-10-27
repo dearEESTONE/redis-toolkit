@@ -25,7 +25,7 @@ public class ClusterUtil {
     public static final String SLOT_MIGRATING_IDENTIFIER = "-->--";
     public static final long CLUSTER_SLEEP_INTERVAL = 100;
     public static final int CLUSTER_DEFAULT_TIMEOUT = 300;
-    public static final int CLUSTER_MIGRATE_NUM = 10;
+    public static final int CLUSTER_MIGRATE_NUM = 100;
     public static final int CLUSTER_DEFAULT_DB = 0;
     public static final String UNIX_LINE_SEPARATOR = "\n";
     public static final String WINDOWS_LINE_SEPARATOR = "\r\n";

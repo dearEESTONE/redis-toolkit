@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="org.yousharp.cluster.ReshardTest" tests="2" skipped="0" failures="2" errors="0" timestamp="2014-10-27T06:26:36" hostname="LINGGUO1-TJ" time="4.008">
+<testsuite name="org.yousharp.cluster.ReshardTest" tests="2" skipped="0" failures="2" errors="0" timestamp="2014-10-27T15:37:17" hostname="LINGGUO1-TJ" time="4.035">
   <properties/>
-  <testcase name="testMigrate" classname="org.yousharp.cluster.ReshardTest" time="2.005">
+  <testcase name="testMigrate" classname="org.yousharp.cluster.ReshardTest" time="2.031">
     <failure message="redis.clients.jedis.exceptions.JedisConnectionException: java.net.SocketTimeoutException: connect timed out" type="redis.clients.jedis.exceptions.JedisConnectionException">redis.clients.jedis.exceptions.JedisConnectionException: java.net.SocketTimeoutException: connect timed out
 	at redis.clients.jedis.Connection.connect(Connection.java:150)
 	at redis.clients.jedis.BinaryClient.connect(BinaryClient.java:75)
@@ -12,7 +12,7 @@
 	at redis.clients.jedis.Jedis.clusterNodes(Jedis.java:3430)
 	at org.yousharp.util.ClusterUtil.getNodeInfo(ClusterUtil.java:162)
 	at org.yousharp.util.ClusterUtil.getNodeSlotsInfo(ClusterUtil.java:315)
-	at org.yousharp.cluster.Reshard.migrate(Reshard.java:78)
+	at org.yousharp.cluster.Reshard.migrate(Reshard.java:81)
 	at org.yousharp.cluster.ReshardTest.testMigrate(ReshardTest.java:18)
 	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
 	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)
@@ -69,7 +69,7 @@ Caused by: java.net.SocketTimeoutException: connect timed out
 	... 52 more
 </failure>
   </testcase>
-  <testcase name="testMigrateSlot" classname="org.yousharp.cluster.ReshardTest" time="2.002">
+  <testcase name="testMigrateSlot" classname="org.yousharp.cluster.ReshardTest" time="2.003">
     <failure message="redis.clients.jedis.exceptions.JedisConnectionException: java.net.SocketTimeoutException: connect timed out" type="redis.clients.jedis.exceptions.JedisConnectionException">redis.clients.jedis.exceptions.JedisConnectionException: java.net.SocketTimeoutException: connect timed out
 	at redis.clients.jedis.Connection.connect(Connection.java:150)
 	at redis.clients.jedis.BinaryClient.connect(BinaryClient.java:75)
@@ -79,7 +79,7 @@ Caused by: java.net.SocketTimeoutException: connect timed out
 	at redis.clients.jedis.Client.clusterNodes(Client.java:943)
 	at redis.clients.jedis.Jedis.clusterNodes(Jedis.java:3430)
 	at org.yousharp.util.ClusterUtil.getNodeId(ClusterUtil.java:180)
-	at org.yousharp.cluster.Reshard.migrateSlots(Reshard.java:35)
+	at org.yousharp.cluster.Reshard.migrateSlots(Reshard.java:36)
 	at org.yousharp.cluster.ReshardTest.testMigrateSlot(ReshardTest.java:26)
 	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
 	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:57)

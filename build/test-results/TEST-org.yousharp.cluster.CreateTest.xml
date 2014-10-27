@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="org.yousharp.cluster.CreateTest" tests="2" skipped="0" failures="2" errors="0" timestamp="2014-10-27T06:26:25" hostname="LINGGUO1-TJ" time="3.051">
+<testsuite name="org.yousharp.cluster.CreateTest" tests="2" skipped="0" failures="2" errors="0" timestamp="2014-10-27T15:37:06" hostname="LINGGUO1-TJ" time="3.103">
   <properties/>
-  <testcase name="testCreateFromConfig" classname="org.yousharp.cluster.CreateTest" time="2.046">
+  <testcase name="testCreateFromConfig" classname="org.yousharp.cluster.CreateTest" time="2.1">
     <failure message="redis.clients.jedis.exceptions.JedisConnectionException: java.net.SocketTimeoutException: connect timed out" type="redis.clients.jedis.exceptions.JedisConnectionException">redis.clients.jedis.exceptions.JedisConnectionException: java.net.SocketTimeoutException: connect timed out
 	at redis.clients.jedis.Connection.connect(Connection.java:150)
 	at redis.clients.jedis.BinaryClient.connect(BinaryClient.java:75)
@@ -69,7 +69,7 @@ Caused by: java.net.SocketTimeoutException: connect timed out
 	... 52 more
 </failure>
   </testcase>
-  <testcase name="testCreateFromList" classname="org.yousharp.cluster.CreateTest" time="1.004">
+  <testcase name="testCreateFromList" classname="org.yousharp.cluster.CreateTest" time="1.002">
     <failure message="redis.clients.jedis.exceptions.JedisConnectionException: java.net.ConnectException: Connection refused: connect" type="redis.clients.jedis.exceptions.JedisConnectionException">redis.clients.jedis.exceptions.JedisConnectionException: java.net.ConnectException: Connection refused: connect
 	at redis.clients.jedis.Connection.connect(Connection.java:150)
 	at redis.clients.jedis.BinaryClient.connect(BinaryClient.java:75)
