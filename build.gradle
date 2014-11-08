@@ -13,6 +13,7 @@ targetCompatibility = 1.7
 
 repositories {
      maven { url "http://repo.maven.apache.org/maven2" }
+    mavenCentral()
 }
 dependencies {
     compile group: 'com.google.guava', name: 'guava', version:'17.0'
