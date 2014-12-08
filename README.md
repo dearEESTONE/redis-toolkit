@@ -40,4 +40,4 @@ redis提供了redis-trib.rb工具对cluster进行管理，包括创建集群、�
 
 cluster模式下不能直接使用mset/mget等可能跨slot的操作，但是我们知道key是如何map到slot的：使用CRC16算法计算key的值，然后对16384求余。因此，我们可以先对批量key进行预处理，将key都映射到对应的slot中，然后对每一个slot中的所有key使用pipeline操作，可以间接地实现mset/mget等操作，提高cluster模式下批量处理的性能。
 
-> 具体的实现及使用请可以博文[redis-toolkit：Java实现的redis工具(一)](http://nkcoder.github.io/blog/20141024/redis-tookit-implement-in-java-1/)
+> 具体的实现及使用可以参考博文[redis-toolkit：Java实现的redis工具(一)](http://nkcoder.github.io/blog/20141024/redis-tookit-implement-in-java-1/)
