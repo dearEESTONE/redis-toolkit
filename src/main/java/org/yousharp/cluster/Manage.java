@@ -3,8 +3,8 @@ package org.yousharp.cluster;
 import static com.google.common.base.Preconditions.*;
 
 import com.google.common.collect.Sets;
-import com.google.common.net.HostAndPort;
 import org.yousharp.util.ClusterUtil;
+import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisCluster;
 import redis.clients.util.ClusterNodeInformation;
@@ -64,7 +64,7 @@ public class Manage {
             }
         } else {        // the node to add is slave, replicate to masterToReplicate in the cluster
             ClusterUtil.joinCluster(clusterNodeInfo, nodeToAdd);
-            Jedis node = new Jedis(nodeToAdd.getHostText(), nodeToAdd.getPort());
+            Jedis node = new Jedis(nodeToAdd.getHost(), nodeToAdd.getPort());
             String masterNodeId = ClusterUtil.getNodeId(masterToReplicate);
             node.clusterReplicate(masterNodeId);
             node.close();
@@ -84,7 +84,7 @@ public class Manage {
      * @param nodeToDelete      the node to delete
      */
     public static void removeNode(final HostAndPort oneNodeInfo, final HostAndPort nodeToDelete) {
-        Jedis deleteNode = new Jedis(nodeToDelete.getHostText(), nodeToDelete.getPort());
+        Jedis deleteNode = new Jedis(nodeToDelete.getHost(), nodeToDelete.getPort());
         String deleteNodeId = ClusterUtil.getNodeId(nodeToDelete);
         List<HostAndPort> allNodesOfCluster = ClusterUtil.getAllNodesOfCluster(oneNodeInfo);
 
@@ -99,7 +99,7 @@ public class Manage {
             for (HostAndPort nodeInfo: allNodesOfCluster) {
                 // a node cannot `forget` itself
                 if (!nodeInfo.equals(nodeToDelete)) {
-                    Jedis node = new Jedis(nodeInfo.getHostText(), nodeInfo.getPort());
+                    Jedis node = new Jedis(nodeInfo.getHost(), nodeInfo.getPort());
                     node.clusterForget(deleteNodeId);
                     node.close();
                 }
@@ -132,13 +132,14 @@ public class Manage {
         // remove the master and it's slaves from the cluster
         allNodesOfCluster.remove(nodeToDelete);
         for (String slaveStr: slavesOfMaster) {
-            HostAndPort slaveInfo = HostAndPort.fromString(slaveStr.split(" ")[1]);
+            String[] hostAndPort = slaveStr.split(" ")[1].split(":");
+            HostAndPort slaveInfo = new HostAndPort(hostAndPort[0], Integer.valueOf(hostAndPort[1]));
             allNodesOfCluster.remove(slaveInfo);
         }
 
         // every node of the cluster `forget` the master and it's slaves
         for (HostAndPort nodeInfo: allNodesOfCluster) {
-            Jedis node = new Jedis(nodeInfo.getHostText(), nodeInfo.getPort());
+            Jedis node = new Jedis(nodeInfo.getHost(), nodeInfo.getPort());
             node.clusterForget(deleteNodeId);
             for (String slaveStr: slavesOfMaster) {
                 node.clusterForget(slaveStr.split(" ")[0]);

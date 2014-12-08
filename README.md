@@ -1,80 +1,43 @@
-redis-toolkit provides a utility interface for redis. It is implemented in Java, based on Jedis.
+1. 这个项目要做什么
+---------------------------------------------
 
-How To Use
---------------------------------------------------
+redis当前的最新版本是3.0.0 RC-1，支持cluster。但是redis的cluster还不够完善：
 
-### 1. Create a Cluster
++ 节点不能自动发现，并自动构建cluster；
++ 不能动态地增删cluster中的节点；
++ 增删节点时，需要手动做数据迁移（resharding）；
 
-We can create a cluster with redis-trib.rb like this:
+redis提供了redis-trib.rb工具对cluster进行管理，包括创建集群、增删节点，以及数据的迁移。但是redis的java客户端Jedis并没有提供对应的实现。
 
-	./redis-trib.rb create --replicas 1 127.0.0.1:7000 127.0.0.1:7001 127.0.0.1:7002 127.0.0.1:7003 127.0.0.1:7004 127.0.0.1:7005
-	
-With redis-toolkit, the method `Create#create()` is used to create a new cluster, each master can have zero, one and many slaves:
+本项目在Jedis的基础上，主要提供两个功能：
 
-	/* create a cluster with 3 masters, each has one slave */
-    ArrayListMultimap<HostAndPort, HostAndPort> clusterNodes = ArrayListMultimap.create();
-    clusterNodes.put(HostAndPort.fromString("127.0.0.1:7000"), HostAndPort.fromString("127.0.0.1:7001"));
-    clusterNodes.put(HostAndPort.fromString("127.0.0.1:7002"), HostAndPort.fromString("127.0.0.1:7003"));
-    clusterNodes.put(HostAndPort.fromString("127.0.0.1:7004"), HostAndPort.fromString("127.0.0.1:7005"));
-    Create.create(clusterNodes);
-    
-### 2. Resharding
++ 对redis-trib.rb集群管理功能的java实现，包括创建集群、增删节点，以及数据迁移；
++ 集群模式下，mset/mget等可能跨slot的操作是被禁用的，但是我们可以根据CRC16算法，根据slot对所有的key进行分类，对一个slot中的key使用pipeline，这样在cluster模式下以pipeline的方式实现mset/mget等批量操作，可以显著提高性能。
 
-After beta8, redis supports resharding without interaction. For example, you can migrate 100 slots from 38807bd0262d99f205ebd0eb3e483cc09e927731 to 
-47ef6c293bb3f9763d421f56c63f00cf06ef5b3f:
 
-	redis-trib.rb reshard --from 38807bd0262d99f205ebd0eb3e483cc09e927731 --to 47ef6c293bb3f9763d421f56c63f00cf06ef5b3f --slots 100 --yes 127.0.0.1:7000
-	
-Redis-toolkit supports migrating, too. The method `Reshard#migrateSlots()` is to migrate the specified slots from one node to another, and the method
- `Reshard#migrate()` is to migrate specified number slots: 
+2. 实现的要点
+----------------------------------------------------
 
-	/* migrate slot 9189 from node 7002 to node 7006 */
-    HostAndPort srcNodeInfo = HostAndPort.fromString("10.7.40.49:7002");
-    HostAndPort destNodeInfo = HostAndPort.fromString("10.7.40.49:7006");
-    Reshard.migrateSlots(srcNodeInfo, destNodeInfo, 9189);
-    
-    /* migrate 100 slots from node 7000 to node 7004 */
-    HostAndPort srcNodeInfo = HostAndPort.fromString("10.7.40.49:7000");
-    HostAndPort destNodeInfo = HostAndPort.fromString("10.7.40.49:7004");
-    Reshard.migrate(srcNodeInfo, destNodeInfo, 100);
-    
-### 3. Add/Remove nodes
+### 2.1 创建cluster的主要命令
 
-If the node to add is master, we should migrate some slots to it; if it is a slave, replicate it to it's master.
++ CLUSER MEET
++ CLUSTER REPLICATE
++ CLUSTER SETSLOTS
 
-With redis-trib.rb, you can add a master node:
+### 2.2 数据迁移的主要命令
 
-	./redis-trib.rb add-node 127.0.0.1:7006 127.0.0.1:7000
-	
-And you have two ways to add a slave node: 
-	
-	./redis-trib.rb add-node --slave 127.0.0.1:7006 127.0.0.1:7000
-    
-    ./redis-trib.rb add-node --slave --master-id 3c3a0c74aae0b56170ccb03a76b60cfe7dc1912e 127.0.0.1:7006
++ CLUSTER SETSLOT <slot> IMPORTING <source_node_id>
++ CLUSTER SETSLOT <slot> MIGRATING <target_node_id>
++ CLUSTER GETKEYSINSLOT <slot> <count>
++ CLUSTER MIGRATE <target_ip> <target_port> <key_name> 0 <timeout>
++ CLUSTER SETSLOT <slot> NODE <target_node_id>
 
-With redis-toolkit, we call `Manage#addNewNode()` to add a node to the cluster, the second param is the node to add, if it is a master, 
-the third param
-is null; if it is a slave, the third param is it's master node. For example:
+### 2.3 增删节点
 
-	/* add master node 7006 to the cluster */ 
-    HostAndPort clusterNodeInfo = HostAndPort.fromString("10.7.40.49:7000");
-    HostAndPort newMaster = HostAndPort.fromString("10.7.40.49:7006");
-    Manage.addNewNode(clusterNodeInfo, newMaster, null);
-    
-    /* add slave node 8001 to the cluster, it's master node is 7002 */
-    HostAndPort clusterNodeInfo = HostAndPort.fromString("10.7.40.49:7000");
-    HostAndPort master = HostAndPort.fromString("10.7.40.49:7002");
-    HostAndPort newSlave = HostAndPort.fromString("10.7.40.49:8001");
-    Manage.addNewNode(clusterNodeInfo, newSlave, master);
+增删节点主要就是数据的迁移，比如增加节点的时候，如果是主节点，则需要从其它主节点迁移一些slot到新的主节点，如果删除的是主节点，则删除之前，需要将该主节点上的数据迁移到cluster中其它有效的主节点上。
 
-With redis-trib.rb, we can delete a node using the following command: 
+### 2.4 cluster模式下批量操作的优化
 
-	./redis-trib del-node 127.0.0.1:7000 3c3a0c74aae0b56170ccb03a76b60cfe7dc1912e
-	
-With redis-toolkit, we call `Manage#deleteNode()` to delete a node, the method itself will check whether the node is master or slave. If the node is 
-master, first migrate all nodes away: 
+cluster模式下不能直接使用mset/mget等可能跨slot的操作，但是我们知道key是如何map到slot的：使用CRC16算法计算key的值，然后对16384求余。因此，我们可以先对批量key进行预处理，将key都映射到对应的slot中，然后对每一个slot中的所有key使用pipeline操作，可以间接地实现mset/mget等操作，提高cluster模式下批量处理的性能。
 
-	/* delete node 7006 from the cluster */
-    HostAndPort oneNode = HostAndPort.fromString("10.7.40.49:7000");
-    HostAndPort nodeToDelete = HostAndPort.fromString("10.7.40.49:7006");
-    Manage.removeNode(oneNode, nodeToDelete);
+> 具体的实现及使用请可以博文[redis-toolkit：Java实现的redis工具(一)](http://nkcoder.github.io/blog/20141024/redis-tookit-implement-in-java-1/)

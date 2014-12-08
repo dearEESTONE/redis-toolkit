@@ -4,8 +4,8 @@ import static com.google.common.base.Preconditions.*;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Lists;
-import com.google.common.net.HostAndPort;
 import org.yousharp.util.ClusterUtil;
+import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisCluster;
 
@@ -38,7 +38,7 @@ public class Create {
             HostAndPort slaveNodeInfo = pair.getValue();
 
             if (firstNode == null) {
-                firstNode = new Jedis(masterNodeInfo.getHostText(), masterNodeInfo.getPort());
+                firstNode = new Jedis(masterNodeInfo.getHost(), masterNodeInfo.getPort());
                 ClusterUtil.joinCluster(masterNodeInfo, slaveNodeInfo);
                 continue;
             }

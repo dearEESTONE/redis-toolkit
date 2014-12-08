@@ -2,8 +2,8 @@ package org.yousharp.cluster;
 
 import static com.google.common.base.Preconditions.*;
 
-import com.google.common.net.HostAndPort;
 import org.yousharp.util.ClusterUtil;
+import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisCluster;
 import redis.clients.jedis.Pipeline;
@@ -32,10 +32,10 @@ public class Reshard {
         checkNotNull(destNodeInfo, "destNodeInfo cannot be null.");
         checkArgument(slotsToMigrate != null && slotsToMigrate.length > 0, "slots size cannot be 0.");
 
-        Jedis srcNode = new Jedis(srcNodeInfo.getHostText(), srcNodeInfo.getPort());
+        Jedis srcNode = new Jedis(srcNodeInfo.getHost(), srcNodeInfo.getPort());
         String srcNodeId = ClusterUtil.getNodeId(srcNodeInfo);
         Pipeline pipeline = srcNode.pipelined();
-        Jedis destNode = new Jedis(destNodeInfo.getHostText(), destNodeInfo.getPort());
+        Jedis destNode = new Jedis(destNodeInfo.getHost(), destNodeInfo.getPort());
         String destNodeId = ClusterUtil.getNodeId(destNodeInfo);
 
         /** migrate every slot from src node to dest node */
@@ -49,7 +49,7 @@ public class Reshard {
                     break;
                 }
                 for (String key: keysInSlot) {
-                    pipeline.migrate(destNodeInfo.getHostText(), destNodeInfo.getPort(), key, ClusterUtil.CLUSTER_DEFAULT_DB, ClusterUtil.CLUSTER_DEFAULT_TIMEOUT);
+                    pipeline.migrate(destNodeInfo.getHost(), destNodeInfo.getPort(), key, ClusterUtil.CLUSTER_DEFAULT_DB, ClusterUtil.CLUSTER_DEFAULT_TIMEOUT);
                 }
             }
             pipeline.sync();

@@ -1,9 +1,9 @@
 package org.yousharp.cluster;
 
-import com.google.common.net.HostAndPort;
 import org.junit.Assert;
 import org.junit.Test;
 import org.yousharp.util.ClusterUtil;
+import redis.clients.jedis.HostAndPort;
 import redis.clients.jedis.Jedis;
 
 import java.util.List;
@@ -23,8 +23,8 @@ public class ClusterMiscTest extends Assert {
 
     @Test
     public void testClusterSlaves() {
-        HostAndPort nodeInfo = HostAndPort.fromString("10.7.40.49:8000");
-        Jedis node = new Jedis(nodeInfo.getHostText(), nodeInfo.getPort());
+        HostAndPort nodeInfo = new HostAndPort("10.7.40.49", 8000);
+        Jedis node = new Jedis(nodeInfo.getHost(), nodeInfo.getPort());
         String nodeId = ClusterUtil.getNodeId(nodeInfo);
         List<String> slaves = node.clusterSlaves(nodeId);
         for (String slave: slaves) {
@@ -37,8 +37,8 @@ public class ClusterMiscTest extends Assert {
     public void testClusterForget() {
         Jedis node = new Jedis("10.7.40.49", 7002);
 
-        HostAndPort forgetInfo1 = HostAndPort.fromString("10.7.40.49:7004");
-        HostAndPort forgetInfo2 = HostAndPort.fromString("10.7.40.49:7005");
+        HostAndPort forgetInfo1 = new HostAndPort("10.7.40.49", 7004);
+        HostAndPort forgetInfo2 = new HostAndPort("10.7.40.49", 7005);
         String nodeId1 = ClusterUtil.getNodeId(forgetInfo1);
         String nodeId2 = ClusterUtil.getNodeId(forgetInfo2);
 

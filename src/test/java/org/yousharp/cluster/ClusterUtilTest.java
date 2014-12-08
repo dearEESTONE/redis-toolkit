@@ -1,8 +1,8 @@
 package org.yousharp.cluster;
 
-import com.google.common.net.HostAndPort;
 import org.junit.Test;
 import org.yousharp.util.ClusterUtil;
+import redis.clients.jedis.HostAndPort;
 
 import java.util.List;
 
@@ -14,7 +14,7 @@ public class ClusterUtilTest {
 
     @Test
     public void testGetAllNodesOfCluster() {
-        HostAndPort nodeInfo = HostAndPort.fromString("10.7.40.49:8000");
+        HostAndPort nodeInfo = new HostAndPort("10.7.40.49", 8000);
         List<HostAndPort> nodeList = ClusterUtil.getAllNodesOfCluster(nodeInfo);
         for (HostAndPort hostAndPort: nodeList) {
             System.out.println(hostAndPort);
