@@ -5,11 +5,8 @@ apply plugin: 'idea'
 group = 'org.yousharp'
 version = '1.0-SNAPSHOT'
 
-
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
-
-
 
 repositories {
      maven { url "http://repo.maven.apache.org/maven2" }
