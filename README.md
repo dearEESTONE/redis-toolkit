@@ -1,7 +1,7 @@
 1. 这个项目要做什么
 ---------------------------------------------
 
-redis当前的最新版本是3.0.0 RC-1，支持cluster。但是redis的cluster还不够完善：
+redis当前的最新版本是3.0.0 RC-4，支持cluster。但是redis的cluster还不够完善：
 
 + 节点不能自动发现，并自动构建cluster；
 + 不能动态地增删cluster中的节点；
@@ -12,6 +12,7 @@ redis提供了redis-trib.rb工具对cluster进行管理，包括创建集群、�
 本项目在Jedis的基础上，主要提供两个功能：
 
 + 对redis-trib.rb集群管理功能的java实现，包括创建集群、增删节点，以及数据迁移；
+
 + 集群模式下，mset/mget等可能跨slot的操作是被禁用的，但是我们可以根据CRC16算法，根据slot对所有的key进行分类，对一个slot中的key使用pipeline，这样在cluster模式下以pipeline的方式实现mset/mget等批量操作，可以显著提高性能。
 
 
